@@ -1,0 +1,86 @@
+```markdown
+# Dokumentation des Google App Script
+
+## Übersicht
+
+Das Google App Script wird verwendet, um Daten von einem Cloud Run Service abzurufen und diese in verschiedene Google Sheets einzutragen. Jede Position (z.B. QB, RB, WR) wird in ein separates Sheet geladen, wobei die Daten entsprechend formatiert und in der Tabelle gespeichert werden.
+
+## Funktionsweise
+
+### 1. Initialisierung des Skripts
+
+Das Skript startet mit der Definition des `importCloudRunData`-Funktion. Diese Funktion steuert den gesamten Ablauf von der Datenabfrage bis zur Speicherung der Daten in den Google Sheets.
+
+### 2. Definition der Sheet-Namen
+
+Ein `keyMap`-Objekt wird erstellt, das jeder Position (z.B. QB, RB, WR) den entsprechenden Namen des Sheets zuweist. Dieses Mapping sorgt dafür, dass die abgerufenen Daten in das richtige Sheet eingefügt werden.
+
+```javascript
+const keyMap = {
+  'QB': 'Source_ADF_QB',
+  'RB': 'Source_ADF_RB',
+  'WR': 'Source_ADF_WR',
+  'TE': 'Source_ADF_TE',
+  'K': 'Source_ADF_K',
+  'DST': 'Source_ADF_DST'
+};
+```
+
+### 3. Abrufen der Daten vom Cloud Run Service
+
+Die Funktion verwendet `UrlFetchApp.fetch`, um Daten von einer Cloud Run-Instanz abzurufen. Die abgerufenen Daten werden als JSON geparst und zur weiteren Verarbeitung in das `datasets`-Objekt geladen.
+
+### 4. Verarbeitung und Speicherung der Daten
+
+Für jede Position wird das entsprechende Sheet im Spreadsheet ausgewählt. Die Daten werden dann verarbeitet, um sicherzustellen, dass sie korrekt formatiert sind. Das Skript geht dabei wie folgt vor:
+
+1. **Säubern der Daten**: Der Spielername und das Team werden getrennt, indem der Teamname, der in Klammern angegeben ist, entfernt und in die Team-Spalte verschoben wird.
+  
+2. **Umwandeln der SOS-Werte**: Die SOS-Sterne-Werte (z.B. "3 out of 5 stars") werden in eine numerische Darstellung umgewandelt.
+
+3. **Einfügen der Daten in das Sheet**: Nachdem die Daten verarbeitet wurden, werden sie in das entsprechende Sheet eingefügt. Das Skript beginnt mit einer leeren Tabelle, fügt die Header-Zeile ein und schreibt dann die Daten darunter.
+
+### 5. Fehlerbehandlung
+
+Das Skript ist darauf ausgelegt, Fehler abzufangen und entsprechende Meldungen im Logger auszugeben. Dies gewährleistet eine robuste Ausführung, auch wenn unerwartete Probleme auftreten.
+
+### Beispiel für die Datenverarbeitung
+
+Ein wichtiger Aspekt des Skripts ist die Trennung von Spielername und Team sowie die Umwandlung der SOS-Werte. Diese Verarbeitungsschritte gewährleisten, dass die Daten korrekt formatiert sind und leicht in den Google Sheets dargestellt werden können.
+
+```javascript
+const rows = data.map(player => {
+    let playerName = player.team;
+    let team = "";
+
+    const teamMatch = playerName.match(/\(([^)]+)\)$/);
+    if (teamMatch) {
+        team = teamMatch[1]; // Team extrahieren
+        playerName = playerName.replace(teamMatch[0], "").trim(); // Team aus dem Namen entfernen
+    }
+
+    let sosSeason = player.sos_season;
+    if (sosSeason) {
+        const sosMatch = sosSeason.match(/(\d) out of 5 stars/g);
+        if (sosMatch) {
+            sosSeason = sosMatch[0].charAt(0); // Nimmt die Zahl vor "out of 5 stars"
+        } else {
+            sosSeason = ""; // Falls kein passender Wert gefunden wurde
+        }
+    }
+
+    return [
+        player.rank || '',
+        playerName,
+        team,
+        player.bye_week || '',
+        sosSeason || '',
+        player.ecr_vs_adp || ''
+    ];
+});
+```
+
+### Zusammenfassung
+
+Das Google App Script importiert Daten von einem Cloud Run Service und verteilt sie auf verschiedene Google Sheets basierend auf der Position (QB, RB, WR, etc.). Das Skript ist so konzipiert, dass es robust auf Fehler reagiert und die Daten in einer benutzerfreundlichen Form präsentiert. Durch die klare Trennung und Verarbeitung der Daten wird sichergestellt, dass sie korrekt und übersichtlich in den Sheets dargestellt werden.
+```
