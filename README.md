@@ -1,70 +1,67 @@
-# Fantasy Football Data Scraper
+# Fanscrape - Projektübersicht
 
-This project is a web scraping service designed to retrieve Fantasy Football rankings and related data from FantasyPros. The service uses Playwright to interact with the website and fetch the necessary data, which is then processed and stored for further analysis or integration into Google Sheets.
+## Einführung
 
-## Features
+Dieses Projekt namens "Fanscrape" wurde entwickelt, um die Fantasy Football-Rankings von FantasyPros zu automatisieren. Es besteht aus mehreren Komponenten, darunter ein Google Apps Script zur Integration in Google Sheets und ein Node.js-Service, der in Google Cloud Run bereitgestellt wird. 
 
-- **Automated Web Scraping**: Uses Playwright to automatically navigate the FantasyPros website, select specific experts, and retrieve rankings for different player positions (QB, RB, WR, TE, K, DST).
-- **Google Sheets Integration**: The scraped data is seamlessly imported into Google Sheets, allowing for easy access, analysis, and reporting.
-- **Customizable and Extensible**: The service is designed to be easily modified for different scraping needs or other data sources.
+Die wichtigsten Bestandteile des Projekts sind:
 
-## Project Structure
+1. **Google Apps Script** - Zum Abrufen und Verarbeiten von Daten aus dem Cloud Run-Service und zum Importieren dieser Daten in spezifische Google Sheets.
+2. **Cloud Run Service** - Ein Node.js-basierter Dienst, der die Daten von FantasyPros extrahiert und in einem Dataset speichert, das von Google Apps Script abgerufen wird.
+3. **Crawler (Crawlee/Playwright)** - Ein Web-Crawler, der die Experten-Auswahl auf der Webseite durchführt und die Daten extrahiert.
 
-- **`main.js`**: The entry point for the Cloud Run service. It sets up the PlaywrightCrawler and processes the data before sending it to Google Sheets.
-- **`routes.js`**: Handles the core scraping logic, including navigating the site, selecting experts, and extracting data for different positions.
-- **`Google App Script`**: A script that runs in Google Sheets to pull the data from the Cloud Run service and populate the sheets with updated rankings.
-- **`cookies.json`**: Stores the necessary cookies to maintain a session with the FantasyPros website.
+## Struktur des Projekts
 
-## Prerequisites
+### Google Apps Script
+- **Datei**: `importCloudRunData.gs`
+- **Beschreibung**: Dieses Skript ruft die Daten vom Cloud Run-Service ab und importiert sie in verschiedene Google Sheets. Es analysiert die JSON-Daten und extrahiert die relevanten Informationen, wie z.B. den Spielernamen, das Team und die Bye Week, und speichert diese in spezifischen Tabellenblättern.
 
-- **Node.js**: Ensure you have Node.js installed on your system.
-- **Google Cloud Account**: For deploying the service on Google Cloud Run.
-- **GitHub Account**: To host and manage the project repository.
+### Cloud Run Service
+- **Datei**: `main.js`
+- **Beschreibung**: Dies ist das zentrale Skript, das den Crawlee-Webcrawler konfiguriert und steuert. Es sorgt dafür, dass die Cookies korrekt gesetzt werden und der Crawler die richtige Seite besucht und die notwendigen Daten extrahiert.
 
-## Setup
+### Crawlee/Playwright Crawler
+- **Datei**: `routes.js`
+- **Beschreibung**: Dieses Skript definiert den Web-Crawler, der die Webseite von FantasyPros besucht, Experten auswählt und die Rankings extrahiert. Es werden verschiedene Positionen (QB, RB, WR, etc.) auf der Seite durchlaufen und die entsprechenden Daten gesammelt.
 
-1. **Clone the Repository**
-    ```bash
-    git clone https://github.com/<your-username>/<repository-name>.git
-    cd <repository-name>
-    ```
+## Ablauf
 
-2. **Install Dependencies**
-    ```bash
-    npm install
-    ```
+1. **Start des Cloud Run Service**:
+   - Der Node.js-Service wird in Google Cloud Run bereitgestellt. Dieser Service startet den Crawlee-Crawler, der die FantasyPros-Seite besucht, die Experten auswählt und die Daten extrahiert.
+  
+2. **Datenextraktion**:
+   - Der Crawler navigiert durch die Seite, wählt die entsprechenden Experten aus, lädt die Seite neu und extrahiert die Rankings für jede Position (QB, RB, WR, etc.).
 
-3. **Configure Google Cloud**
-    - Deploy the service to Google Cloud Run.
-    - Set up necessary environment variables and permissions.
+3. **Speicherung der Daten**:
+   - Die extrahierten Daten werden in einem Dataset gespeichert, das dann vom Google Apps Script abgerufen wird.
 
-4. **Google Sheets Integration**
-    - Copy the Google App Script provided in the `GoogleAppScript.md` to your Google Sheets project.
-    - Link it with your Cloud Run endpoint to fetch data automatically.
+4. **Datenimport in Google Sheets**:
+   - Das Google Apps Script ruft die Daten vom Cloud Run-Service ab und importiert sie in die entsprechenden Tabellenblätter in Google Sheets.
 
-## Usage
+## Installation und Verwendung
 
-- **Running the Scraper Locally**
-    ```bash
-    npm start
-    ```
+1. **Google Apps Script**:
+   - Erstellen Sie ein neues Google Sheets Dokument.
+   - Öffnen Sie den Script-Editor (`Erweiterungen > Apps Script`).
+   - Kopieren Sie den Code aus `importCloudRunData.gs` in den Editor und speichern Sie das Projekt.
+   - Passen Sie die `cloudRunUrl` an die URL Ihres Cloud Run-Service an.
+   - Führen Sie das Skript über den Script-Editor aus oder erstellen Sie ein benutzerdefiniertes Menü in Google Sheets, um es direkt aus dem Sheet auszuführen.
 
-- **Deploying to Google Cloud Run**
-    - Follow the instructions in the `Google Cloud Setup` section to deploy the service.
+2. **Cloud Run Service**:
+   - Klonen Sie dieses Repository.
+   - Stellen Sie sicher, dass Node.js und npm installiert sind.
+   - Installieren Sie die Abhängigkeiten mit `npm install`.
+   - Starten Sie den Service lokal mit `npm start` oder deployen Sie ihn zu Google Cloud Run.
 
-- **Updating Data in Google Sheets**
-    - Open your Google Sheets document and run the script to fetch and populate the latest data.
+3. **Crawler**:
+   - Der Crawler wird automatisch vom Cloud Run-Service gestartet. Erstellen Sie eine Route in `routes.js`, die die Webseite besucht und die gewünschten Daten extrahiert.
 
-## Contributing
+## Anmerkungen
 
-Contributions are welcome! Please open an issue or submit a pull request for any changes or additions.
+- Stellen Sie sicher, dass Sie über ausreichende Ressourcen in Google Cloud Run verfügen, um die Last des Crawlers zu bewältigen.
+- Beachten Sie, dass Änderungen an der Struktur der Zielwebseite Anpassungen im Crawler-Skript erfordern könnten.
+- Verwenden Sie das Google Apps Script verantwortungsvoll und achten Sie darauf, nicht gegen die Nutzungsbedingungen von FantasyPros zu verstoßen.
 
-## License
+## Lizenz
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## Acknowledgments
-
-- **FantasyPros**: For providing the data used in this project.
-- **Playwright**: For the web automation framework used in this project.
-- **Google Cloud**: For hosting the service.
+Dieses Projekt steht unter der [MIT-Lizenz](LICENSE).

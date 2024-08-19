@@ -31,7 +31,8 @@ Dieses Projekt zielt darauf ab, Daten von der FantasyPros-Website zu scrapen und
    cd fantasypros-scraper
 
 ### Projektstruktur
-   ├── src/
+
+├── src/
 │   ├── main.js          # Hauptdatei des Cloud Run Services
 │   ├── routes.js        # Routen und Logik für das Scraping
 │   └── config/
@@ -39,4 +40,3 @@ Dieses Projekt zielt darauf ab, Daten von der FantasyPros-Website zu scrapen und
 ├── package.json         # npm Konfigurationsdatei
 ├── README.md            # Dokumentation
 └── .gitignore           # Dateien, die vom Git-Tracking ausgeschlossen sind
-
