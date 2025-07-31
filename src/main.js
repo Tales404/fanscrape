@@ -26,7 +26,7 @@ app.get('/', async (req, res) => {
 
     const crawler = new PlaywrightCrawler({
         requestHandler: router,
-        //headless: false,
+        headless: false,
         preNavigationHooks: [
             async ({ page }) => {
                 const cookiesString = await fs.readFile('src/config/cookies.json', 'utf8');
