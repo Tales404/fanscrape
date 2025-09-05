@@ -11,7 +11,10 @@ COPY package*.json ./
 RUN npm ci --omit=dev --omit=optional
 
 # Copy the rest of the source code
-COPY . .
+COPY --chown=pwuser:pwuser . .
+
+# Create writable runtime directory for screenshots, storage state, etc.
+RUN mkdir -p /app/storage && chown pwuser:pwuser /app/storage
 
 # Run as the non‑root Playwright user that comes with the base image
 USER pwuser
