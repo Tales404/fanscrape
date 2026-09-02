@@ -66,6 +66,26 @@ routerDraft.addDefaultHandler(async ({ page, log, request }) => {
 
     // --- Helpers for robust tab switching and header mapping ---
     async function clickPositionTab(position) {
+        // Current FantasyPros markup: exact link inside the position tab list.
+        try {
+            const clicked = await page.evaluate((pos) => {
+                const want = String(pos || '').trim().toLowerCase();
+                const tabs = Array.from(document.querySelectorAll(
+                    'li.position__li > a, li.position__li > button',
+                ));
+                const tab = tabs.find(element =>
+                    (element.innerText || element.textContent || '').trim().toLowerCase() === want,
+                );
+                if (!tab) return false;
+                tab.click();
+                return true;
+            }, position);
+            if (clicked) {
+                await page.waitForTimeout(200);
+                return true;
+            }
+        } catch {}
+
         // Try ARIA role first (if Playwright's getByRole is available)
         try {
             const roleTab = page.getByRole?.('tab', { name: new RegExp(`^${position}\\b`, 'i') });
@@ -113,11 +133,19 @@ routerDraft.addDefaultHandler(async ({ page, log, request }) => {
     async function getHeaderMap() {
         return page.evaluate(() => {
             const map = {};
-            const ths = Array.from(document.querySelectorAll('table thead th'));
+            const table = Array.from(document.querySelectorAll('table')).find(candidate =>
+                Array.from(candidate.querySelectorAll('thead th')).some(th =>
+                    /player\s+name/i.test(th.innerText || th.textContent || ''),
+                ),
+            );
+            if (!table) return map;
+
+            const headerRows = Array.from(table.querySelectorAll('thead tr'));
+            const ths = Array.from(headerRows.at(-1)?.querySelectorAll('th,td') || []);
             ths.forEach((th, idx) => {
                 const t = (th.innerText || th.textContent || '').trim().toLowerCase();
                 if (!t) return;
-                if (t.includes('rank')) map.rank = idx;
+                if (t === 'rk' || t.includes('rank')) map.rank = idx;
                 if (t.includes('player')) map.player = idx;
                 if (t.includes('team')) map.team = idx;
                 if (t.includes('bye'))  map.bye = idx;
@@ -133,10 +161,14 @@ routerDraft.addDefaultHandler(async ({ page, log, request }) => {
     async function extractDataForPosition(position) {
         log.info(`Lade ${position} …`);
 
-        // Snapshot first cell to detect content change after tab click
-        const beforeFirstCell = await page.evaluate(() => {
-            const td = document.querySelector('table tbody tr td');
-            return (td && (td.innerText || td.textContent || '').trim()) || '';
+        // Snapshot table content to detect the asynchronous tab update.
+        const beforeTableState = await page.evaluate(() => {
+            const table = Array.from(document.querySelectorAll('table')).find(candidate =>
+                Array.from(candidate.querySelectorAll('thead th')).some(th =>
+                    /player\s+name/i.test(th.innerText || th.textContent || ''),
+                ),
+            );
+            return (table?.querySelector('tbody')?.innerText || '').slice(0, 500);
         });
 
         // Click the tab (retry a few times)
@@ -148,21 +180,26 @@ routerDraft.addDefaultHandler(async ({ page, log, request }) => {
         if (!clicked) log.warning(`Konnte Tab für ${position} nicht zuverlässig klicken.`);
 
         // Wait for content change with MutationObserver (max ~6s)
-        const changed = await page.evaluate(async () => {
-            const tbody = document.querySelector('table tbody');
+        const changed = await page.evaluate(async (previous) => {
+            const table = Array.from(document.querySelectorAll('table')).find(candidate =>
+                Array.from(candidate.querySelectorAll('thead th')).some(th =>
+                    /player\s+name/i.test(th.innerText || th.textContent || ''),
+                ),
+            );
+            const tbody = table?.querySelector('tbody');
             if (!tbody) return false;
-            const prev = tbody.innerText.slice(0, 200);
+            if (tbody.innerText.slice(0, 500) !== previous) return true;
             return await new Promise(resolve => {
                 let done = false;
                 const obs = new MutationObserver(() => {
                     if (done) return;
-                    const now = tbody.innerText.slice(0, 200);
-                    if (now && now !== prev) { done = true; obs.disconnect(); resolve(true); }
+                    const now = tbody.innerText.slice(0, 500);
+                    if (now && now !== previous) { done = true; obs.disconnect(); resolve(true); }
                 });
                 obs.observe(tbody, { childList: true, subtree: true });
                 setTimeout(() => { if (!done) { done = true; obs.disconnect(); resolve(false); } }, 6000);
             });
-        });
+        }, beforeTableState);
         if (!changed) {
             log.warning(`Tabelle hat sich für ${position} nicht sichtbar geändert – lese trotzdem.`);
             await page.waitForTimeout(600);
@@ -178,7 +215,7 @@ routerDraft.addDefaultHandler(async ({ page, log, request }) => {
         const usePlayerCellSelector = !headerMap || headerMap.player == null;
 
         // Extract rows using header mapping (plus Fallback)
-        const rows = await page.evaluate((map, usePlayerCellSelector) => {
+        const rows = await page.evaluate(({ map, usePlayerCellSelector }) => {
             const cleanNum = (s) => {
                 const m = String(s||'').match(/[+-]?\d+(\.\d+)?/);
                 return m ? m[0] : '';
@@ -205,7 +242,12 @@ routerDraft.addDefaultHandler(async ({ page, log, request }) => {
             };
 
             const out = [];
-            const trs = Array.from(document.querySelectorAll('table tbody tr'));
+            const table = Array.from(document.querySelectorAll('table')).find(candidate =>
+                Array.from(candidate.querySelectorAll('thead th')).some(th =>
+                    /player\s+name/i.test(th.innerText || th.textContent || ''),
+                ),
+            );
+            const trs = Array.from(table?.querySelectorAll('tbody tr') || []);
             for (const tr of trs) {
                 const tds = tr.querySelectorAll('td');
                 const rankTxt = getText(tds, map?.rank);
@@ -262,16 +304,26 @@ routerDraft.addDefaultHandler(async ({ page, log, request }) => {
                 });
             }
             return out;
-        }, headerMap, usePlayerCellSelector);
+        }, { map: headerMap, usePlayerCellSelector });
 
         if (!rows || rows.length === 0) {
-            const debugHead = await page.evaluate(() => ({
-                head: Array.from(document.querySelectorAll('table thead th')).map(th => (th.innerText||'').trim()),
-                firstRow: (document.querySelector('table tbody tr') || null)?.innerText?.slice(0,200) || 'none',
-            }));
+            const debugHead = await page.evaluate(() => {
+                const table = Array.from(document.querySelectorAll('table')).find(candidate =>
+                    Array.from(candidate.querySelectorAll('thead th')).some(th =>
+                        /player\s+name/i.test(th.innerText || th.textContent || ''),
+                    ),
+                );
+                return {
+                    head: Array.from(table?.querySelectorAll('thead tr:last-child th') || [])
+                        .map(th => (th.innerText || '').trim()),
+                    firstRow: table?.querySelector('tbody tr')?.innerText?.slice(0, 200) || 'none',
+                };
+            });
             log.warning(`Keine Rows für ${position}. Header: ${JSON.stringify(debugHead.head)} | firstRow: ${debugHead.firstRow}`);
         }
-        return rows.filter(r => r && r.player_name);
+        return rows.filter(r => r && (
+            r.player_name || String(r.rank || '').toLowerCase().includes('tier')
+        ));
     }
 
     const ecrData = {};

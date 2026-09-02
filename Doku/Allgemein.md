@@ -70,7 +70,7 @@ werden.
 
 ## Noch offen
 
-- ältere FantasyPros-Sitzungen widerrufen und optional die Git-Historie säubern
+- optional die Git-Historie um die inzwischen abgelaufenen Cookies bereinigen
 - Secret Manager an Cloud Run mounten, bevor der cookie-freie Code deployt wird
 - Dataset/Cache pro Request isolieren
 - Fehlerantworten und Timeouts der HTTP-Endpunkte vereinheitlichen
