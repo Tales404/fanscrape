@@ -1,42 +1,77 @@
-# FantasyPros Scraper Service Documentation
+# Architektur und aktueller Stand
 
-## Inhaltsverzeichnis
-1. [Einleitung](#einleitung)
-2. [Setup und Installation](#setup-und-installation)
-3. [Projektstruktur](#projektstruktur)
-4. [Funktionalität](#funktionalität)
-5. [Google Apps Script](#google-apps-script)
-6. [Cloud Run Service](#cloud-run-service)
-   - [main.js](#mainjs)
-   - [routes.js](#routesjs)
-7. [Wichtige Anpassungen](#wichtige-anpassungen)
-8. [Troubleshooting](#troubleshooting)
-9. [Zukünftige Verbesserungen](#zukünftige-verbesserungen)
+Stand: 2. September 2026
 
-## Einleitung
+## Komponenten
 
-Dieses Projekt zielt darauf ab, Daten von der FantasyPros-Website zu scrapen und diese in verschiedene Google Sheets zu importieren. Es nutzt Google Cloud Run für das Backend und Google Apps Script für die Integration mit Google Sheets. Der Dienst wählt spezifische Experten aus, lädt die Seite für verschiedene Fantasy-Positionen (QB, RB, WR, TE, K, DST) und extrahiert die entsprechenden Daten in eine Google Tabelle.
+Das Google Sheet ist die Arbeitsoberfläche. Quell-Tabs werden entweder direkt
+aus den in FantasyPros-Seiten eingebetteten JavaScript-Daten oder über den
+Cloud-Run-Crawler aktualisiert. Das an das Sheet gebundene Apps Script liegt
+vollständig in `apps-script/` und wird mit `clasp` synchronisiert.
 
-## Setup und Installation
+Der Cloud-Run-Service ist eine Express-Anwendung. Für jede Anfrage startet er
+einen PlaywrightCrawler, speichert das Resultat in einem Crawlee-Dataset und
+liefert dessen Einträge als JSON zurück.
 
-### Voraussetzungen
-- Google Cloud Konto mit Zugriff auf Cloud Run
-- Node.js und npm installiert
-- Zugang zu Google Sheets mit Berechtigungen zur Ausführung von Google Apps Script
+## Endpunkte
 
-### Installation
-1. Klone das Repository auf deinen lokalen Rechner:
-   ```bash
-   git clone https://github.com/dein-repo/fantasypros-scraper.git
-   cd fantasypros-scraper
+### `GET /draft`
 
-### Projektstruktur
+Query-Parameter:
 
-├── src/
-│   ├── main.js          # Hauptdatei des Cloud Run Services
-│   ├── routes.js        # Routen und Logik für das Scraping
-│   └── config/
-│       └── cookies.json # Cookies für den Login bei FantasyPros
-├── package.json         # npm Konfigurationsdatei
-├── README.md            # Dokumentation
-└── .gitignore           # Dateien, die vom Git-Tracking ausgeschlossen sind
+- `positions`: kommasepariert; Standard ist `QB,RB,WR,TE,K,DST,Overall`
+- `experts`: kommaseparierte FantasyPros-Experten-IDs
+- `cacheBuster`: Kennung für einen neuen Dataset-Lauf
+- `headless`: nur `false` deaktiviert Headless-Modus; in Cloud Run bleibt dies
+  normalerweise `true`
+
+Antwortform:
+
+```json
+[
+  {
+    "QB": [
+      {
+        "rank": "1",
+        "player_name": "…",
+        "team": "…",
+        "bye_week": "…",
+        "sos_season": "…",
+        "ecr_vs_adp": "…"
+      }
+    ]
+  }
+]
+```
+
+### `GET /inSeason`
+
+Der Crawler wählt nacheinander die im Code hinterlegten Fantasy-Teams, lädt
+deren CSV-Dateien herunter und gibt Dataset-Einträge der Form
+`{ "team": "…", "players": [...] }` zurück. Die Teamliste ist momentan
+fest in `src/routes.js` konfiguriert.
+
+## Laufender Cloud-Run-Stand
+
+Der letzte Read-only-Abgleich erfolgte mit Service `fanscrape` in
+`europe-west1`, aktive Revision `fanscrape-00026-8r8`. Die Revision nutzt Port
+8080, 2 vCPU, 2 GiB RAM, ein Request-Timeout von 900 Sekunden und eine
+Concurrency von 80. Diese hohe Concurrency passt noch nicht sicher zum
+gemeinsamen Crawlee-Dataset und sollte vor einem nächsten Deployment geprüft
+werden.
+
+## Arbeitsweise
+
+1. Online-Apps-Script vor Änderungen mit dem Git-Stand vergleichen.
+2. Änderungen lokal in einem Branch vornehmen und statisch prüfen.
+3. Erst nach Review nach Apps Script oder Cloud Run deployen.
+4. Nach produktiven Notfalländerungen den tatsächlich laufenden Stand wieder
+   ins Repository zurückführen.
+
+## Noch offen
+
+- Cookies aus Git entfernen, Sitzungen rotieren und Laufzeit-Secrets einführen
+- Dataset/Cache pro Request isolieren
+- Fehlerantworten und Timeouts der HTTP-Endpunkte vereinheitlichen
+- robusten CSV-Parser einsetzen
+- Tests für Parser und Response-Formate ergänzen

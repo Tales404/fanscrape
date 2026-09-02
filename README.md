@@ -1,67 +1,87 @@
-# Fanscrape - Projektübersicht
+# Fanscrape
 
-## Einführung
+Fanscrape versorgt das Google Sheet **„Kopie von Draft Day 2026“** mit
+FantasyPros-Rankings. Das Projekt besteht aus drei Teilen:
 
-Dieses Projekt namens "Fanscrape" wurde entwickelt, um die Fantasy Football-Rankings von FantasyPros zu automatisieren. Es besteht aus mehreren Komponenten, darunter ein Google Apps Script zur Integration in Google Sheets und ein Node.js-Service, der in Google Cloud Run bereitgestellt wird. 
+1. dem Google Sheet als Oberfläche für Analyse und Draft Day,
+2. dem gebundenen Google-Apps-Script-Projekt in `apps-script/`,
+3. dem Crawlee-/Playwright-Service in `src/`, der auf Google Cloud Run läuft.
 
-Die wichtigsten Bestandteile des Projekts sind:
+## Datenfluss
 
-1. **Google Apps Script** - Zum Abrufen und Verarbeiten von Daten aus dem Cloud Run-Service und zum Importieren dieser Daten in spezifische Google Sheets.
-2. **Cloud Run Service** - Ein Node.js-basierter Dienst, der die Daten von FantasyPros extrahiert und in einem Dataset speichert, das von Google Apps Script abgerufen wird.
-3. **Crawler (Crawlee/Playwright)** - Ein Web-Crawler, der die Experten-Auswahl auf der Webseite durchführt und die Daten extrahiert.
+```text
+FantasyPros
+   ├─ direkter HTML-/JavaScript-Import ──> Datenimport.js ──> Source_*_ECR
+   └─ Playwright-Scraping ──> Cloud Run /draft ──> importHTMLEXP.js
+                                                └─> Source_ADFJR_*
+```
 
-## Struktur des Projekts
+`addrank-adf.js` und `addrank-jr.js` fragen den Draft-Endpunkt mit getrennten
+Expertengruppen ab und ergänzen die Spalten `addadf` beziehungsweise `addjr`.
+Der Cloud-Run-Service besitzt zusätzlich `/inSeason`; dafür gibt es im
+aktuellen Apps-Script-Stand keinen aufrufenden Import.
 
-### Google Apps Script
-- **Datei**: `importCloudRunData.gs`
-- **Beschreibung**: Dieses Skript ruft die Daten vom Cloud Run-Service ab und importiert sie in verschiedene Google Sheets. Es analysiert die JSON-Daten und extrahiert die relevanten Informationen, wie z.B. den Spielernamen, das Team und die Bye Week, und speichert diese in spezifischen Tabellenblättern.
+## Projektstruktur
 
-### Cloud Run Service
-- **Datei**: `main.js`
-- **Beschreibung**: Dies ist das zentrale Skript, das den Crawlee-Webcrawler konfiguriert und steuert. Es sorgt dafür, dass die Cookies korrekt gesetzt werden und der Crawler die richtige Seite besucht und die notwendigen Daten extrahiert.
+- `src/main.js`: Express-Endpunkte, Crawler-Konfiguration und Dataset-Ausgabe
+- `src/routes.js`: Browserinteraktionen und Extraktion für Draft/In-Season
+- `apps-script/`: mit dem Sheet gebundener Apps-Script-Quellcode
+- `Doku/`: Detailbeschreibungen der Komponenten
+- `Dockerfile`: Container für Google Cloud Run
 
-### Crawlee/Playwright Crawler
-- **Datei**: `routes.js`
-- **Beschreibung**: Dieses Skript definiert den Web-Crawler, der die Webseite von FantasyPros besucht, Experten auswählt und die Rankings extrahiert. Es werden verschiedene Positionen (QB, RB, WR, etc.) auf der Seite durchlaufen und die entsprechenden Daten gesammelt.
+## Lokale Einrichtung
 
-## Ablauf
+```bash
+npm install
+npm start
+```
 
-1. **Start des Cloud Run Service**:
-   - Der Node.js-Service wird in Google Cloud Run bereitgestellt. Dieser Service startet den Crawlee-Crawler, der die FantasyPros-Seite besucht, die Experten auswählt und die Daten extrahiert.
-  
-2. **Datenextraktion**:
-   - Der Crawler navigiert durch die Seite, wählt die entsprechenden Experten aus, lädt die Seite neu und extrahiert die Rankings für jede Position (QB, RB, WR, etc.).
+Der lokale Server lauscht standardmäßig auf Port `8080`. Beispiel:
 
-3. **Speicherung der Daten**:
-   - Die extrahierten Daten werden in einem Dataset gespeichert, das dann vom Google Apps Script abgerufen wird.
+```text
+GET /draft?positions=QB,RB&experts=1139,22&cacheBuster=example
+GET /inSeason?cacheBuster=example
+```
 
-4. **Datenimport in Google Sheets**:
-   - Das Google Apps Script ruft die Daten vom Cloud Run-Service ab und importiert sie in die entsprechenden Tabellenblätter in Google Sheets.
+`positions` und `experts` sind kommaseparierte Listen. Ohne `positions` lädt
+`/draft` QB, RB, WR, TE, K, DST und Overall. `cacheBuster` steuert das
+Crawlee-Dataset und sollte je gewünschtem neuen Lauf geändert werden.
 
-## Installation und Verwendung
+## Apps Script mit clasp bearbeiten
 
-1. **Google Apps Script**:
-   - Erstellen Sie ein neues Google Sheets Dokument.
-   - Öffnen Sie den Script-Editor (`Erweiterungen > Apps Script`).
-   - Kopieren Sie den Code aus `importCloudRunData.gs` in den Editor und speichern Sie das Projekt.
-   - Passen Sie die `cloudRunUrl` an die URL Ihres Cloud Run-Service an.
-   - Führen Sie das Skript über den Script-Editor aus oder erstellen Sie ein benutzerdefiniertes Menü in Google Sheets, um es direkt aus dem Sheet auszuführen.
+Der Online-Stand wurde dem Ordner `apps-script/` zugeordnet. Die lokalen
+Dateien `.clasprc.json` und `.clasp.json` enthalten Authentifizierung bzw.
+Projektbindung und bleiben außerhalb von Git.
 
-2. **Cloud Run Service**:
-   - Klonen Sie dieses Repository.
-   - Stellen Sie sicher, dass Node.js und npm installiert sind.
-   - Installieren Sie die Abhängigkeiten mit `npm install`.
-   - Starten Sie den Service lokal mit `npm start` oder deployen Sie ihn zu Google Cloud Run.
+```bash
+npm run apps-script:status
+npm run apps-script:pull
+```
 
-3. **Crawler**:
-   - Der Crawler wird automatisch vom Cloud Run-Service gestartet. Erstellen Sie eine Route in `routes.js`, die die Webseite besucht und die gewünschten Daten extrahiert.
+Vor einem Pull müssen lokale Änderungen gesichert sein, weil der Online-Stand
+lokale Dateien überschreiben kann. `clasp push` und Cloud-Run-Deployments
+werden erst nach bewusster Prüfung ausgeführt.
 
-## Anmerkungen
+## Abgleich mit der Produktion
 
-- Stellen Sie sicher, dass Sie über ausreichende Ressourcen in Google Cloud Run verfügen, um die Last des Crawlers zu bewältigen.
-- Beachten Sie, dass Änderungen an der Struktur der Zielwebseite Anpassungen im Crawler-Skript erfordern könnten.
-- Verwenden Sie das Google Apps Script verantwortungsvoll und achten Sie darauf, nicht gegen die Nutzungsbedingungen von FantasyPros zu verstoßen.
+Am 2. September 2026 wurde der Quellstand der aktiven Cloud-Run-Revision
+`fanscrape-00026-8r8` mit GitHub verglichen. `src/main.js`, `Dockerfile` und
+`package.json` waren identisch. Die produktive, robustere `src/routes.js`
+fehlte auf GitHub und wurde auf diesem Branch wiederhergestellt. Der
+GitHub-Lockfile-Stand bleibt erhalten, weil er neuere Dependency-Fixes enthält.
 
-## Lizenz
+## Bekannte technische Risiken
 
-Dieses Projekt steht unter der [MIT-Lizenz](LICENSE).
+- `src/config/cookies.json` enthält Sitzungsdaten und ist historisch im
+  öffentlichen Repository gelandet. Die Sitzungen sollten rotiert und die
+  Datei durch Secret Manager oder eine vergleichbare Laufzeitkonfiguration
+  ersetzt werden.
+- Crawlee verwendet momentan ein gemeinsames Standard-Dataset und einen
+  prozessweiten `lastCacheBuster`. Parallele Cloud-Run-Anfragen können sich
+  dadurch beeinflussen.
+- Der In-Season-CSV-Parser trennt nur an Kommas und behandelt CSV-Quoting nicht
+  vollständig.
+- Es gibt noch keine automatisierten Tests; `npm test` ist derzeit nur ein
+  Platzhalter und schlägt absichtlich fehl.
+
+Weitere Details stehen in [`Doku/Allgemein.md`](Doku/Allgemein.md).
