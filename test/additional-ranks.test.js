@@ -38,7 +38,7 @@ function createSheet(values) {
 test('matches separate player_name and team fields and skips tier rows', () => {
     const sheet = createSheet([
         ['Player Name', 'Team', 'Rank'],
-        ['Josh Allen', 'BUF', '1'],
+        ['Josh Allen', '', '1'],
         ['Jahmyr Gibbs', 'DET', '1'],
         ['Unmatched Existing Player', 'FA', '99'],
     ]);
@@ -63,5 +63,5 @@ test('matches separate player_name and team fields and skips tier rows', () => {
     assert.equal(sheet.values[1][3], '1');
     assert.equal(sheet.values[2][3], '2');
     assert.equal(sheet.values[3][3], '');
-    assert.match(logs.at(-1), /2 Ränge geschrieben, 0 nicht gematcht/);
+    assert.match(logs.at(-1), /2 Ränge geschrieben \(1 davon nur über eindeutigen Namen\), 0 nicht gematcht/);
 });
