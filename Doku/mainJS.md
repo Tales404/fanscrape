@@ -23,7 +23,9 @@ beiden Crawlee-Routern aus `routes.js`.
 
 `headless=false` kann den Browser lokal sichtbar starten. Auf Cloud Run wird
 der Standard `true` verwendet. Der Request-Handler des Crawlers hat ein
-Timeout von 120 Sekunden.
+Timeout von 600 Sekunden. Pro Crawler wird nur eine Anfrage gleichzeitig
+verarbeitet. Bilder, Fonts, Medien und bekannte Werbe-/Tracking-Hosts werden
+vor der Navigation blockiert, um Laufzeit und Speicherbedarf zu reduzieren.
 
 Der Server nutzt `process.env.PORT` oder standardmäßig Port `8080`.
 

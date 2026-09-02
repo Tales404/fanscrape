@@ -12,7 +12,10 @@ let lastCacheBuster = null;
 function buildCrawler(router, { cookies, headless = true } = {}) {
     return new PlaywrightCrawler({
         requestHandler: router,
-        requestHandlerTimeoutSecs: 120,
+        requestHandlerTimeoutSecs: 600,
+        navigationTimeoutSecs: 90,
+        maxConcurrency: 1,
+        maxRequestRetries: 1,
         launchContext: {
             launchOptions: {
                 headless,
@@ -20,6 +23,19 @@ function buildCrawler(router, { cookies, headless = true } = {}) {
         },
         preNavigationHooks: [
             async ({ page }) => {
+                await page.route('**/*', async route => {
+                    const request = route.request();
+                    const resourceType = request.resourceType();
+                    const hostname = new URL(request.url()).hostname;
+                    const blockedResource = ['font', 'image', 'media'].includes(resourceType);
+                    const blockedHost = /(^|\.)(doubleclick\.net|googlesyndication\.com|google-analytics\.com|googletagmanager\.com|amazon-adsystem\.com|criteo\.com|pubmatic\.com|rubiconproject\.com|scorecardresearch\.com)$/.test(hostname);
+
+                    if (blockedResource || blockedHost) {
+                        await route.abort();
+                    } else {
+                        await route.continue();
+                    }
+                });
                 await page.context().addCookies(cookies);
                 console.log('Cookies set successfully');
             },

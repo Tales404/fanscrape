@@ -32,8 +32,7 @@ routerDraft.addDefaultHandler(async ({ page, log, request }) => {
 
     log.info(`Draft-Modus: Cache-Buster ${cacheBuster}`);
 
-    // Seite aufrufen
-    await page.goto(`https://www.fantasypros.com/nfl/rankings/half-point-ppr-cheatsheets.php?cacheBuster=${cacheBuster}`);
+    // Crawlee has already navigated to request.url before this handler runs.
     log.info('Seite im Draft-Modus geladen.');
 
     // Cookie-Banner schließen (falls vorhanden)
@@ -61,7 +60,7 @@ routerDraft.addDefaultHandler(async ({ page, log, request }) => {
     await page.click('button.fp-cta-button.fp-cta-button__primary >> text=Apply');
     log.info('Experten angewendet.');
     // Warte, bis die Tabelle wirklich gerendert ist (headless braucht teils länger)
-    await page.waitForSelector('table tbody tr', { timeout: 30000 });
+    await page.waitForSelector('table.player-table tbody tr', { timeout: 30000 });
     await page.waitForTimeout(800);
 
     // --- Helpers for robust tab switching and header mapping ---
@@ -179,31 +178,30 @@ routerDraft.addDefaultHandler(async ({ page, log, request }) => {
         }
         if (!clicked) log.warning(`Konnte Tab für ${position} nicht zuverlässig klicken.`);
 
-        // Wait for content change with MutationObserver (max ~6s)
-        const changed = await page.evaluate(async (previous) => {
-            const table = Array.from(document.querySelectorAll('table')).find(candidate =>
-                Array.from(candidate.querySelectorAll('thead th')).some(th =>
-                    /player\s+name/i.test(th.innerText || th.textContent || ''),
-                ),
-            );
-            const tbody = table?.querySelector('tbody');
-            if (!tbody) return false;
-            if (tbody.innerText.slice(0, 500) !== previous) return true;
-            return await new Promise(resolve => {
-                let done = false;
-                const obs = new MutationObserver(() => {
-                    if (done) return;
-                    const now = tbody.innerText.slice(0, 500);
-                    if (now && now !== previous) { done = true; obs.disconnect(); resolve(true); }
-                });
-                obs.observe(tbody, { childList: true, subtree: true });
-                setTimeout(() => { if (!done) { done = true; obs.disconnect(); resolve(false); } }, 6000);
-            });
-        }, beforeTableState);
+        // Poll because FantasyPros replaces the complete table/DOM node.
+        let changed = false;
+        try {
+            await page.waitForFunction((previous) => {
+                const table = Array.from(document.querySelectorAll('table')).find(candidate =>
+                    Array.from(candidate.querySelectorAll('thead th')).some(th =>
+                        /player\s+name/i.test(th.innerText || th.textContent || ''),
+                    ),
+                );
+                const current = (table?.querySelector('tbody')?.innerText || '').slice(0, 500);
+                return Boolean(current) && current !== previous;
+            }, beforeTableState, { timeout: 8000, polling: 200 });
+            changed = true;
+        } catch {}
         if (!changed) {
             log.warning(`Tabelle hat sich für ${position} nicht sichtbar geändert – lese trotzdem.`);
             await page.waitForTimeout(600);
         }
+
+        // Do not read headers during the transient empty table state.
+        await page.waitForSelector('table.player-table thead tr:last-child th.player-cell', {
+            timeout: 15000,
+        });
+        await page.waitForSelector('table.player-table tbody tr td', { timeout: 15000 });
 
         // Build header map
         const headerMap = await getHeaderMap();
