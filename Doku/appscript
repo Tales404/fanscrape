@@ -31,10 +31,12 @@ Dabei wird nur der Inhalt geleert (`clearContents()`), nicht die Formatierung.
 
 - `addrank-adf.js` ergänzt `addadf` für die dort konfigurierte Expertengruppe.
 - `addrank-jr.js` ergänzt `addjr` für die dort konfigurierte Expertengruppe.
+- `additional-ranks-common.js` enthält die gemeinsame Import- und
+  Matching-Logik beider Funktionen.
 
-Beide Funktionen matchen Spieler über normalisierten Namen plus Team. Bei
-leeren Tabs können die aktuellen Range-Berechnungen ungültige Zeilenzahlen
-erzeugen; dieser Randfall ist noch nicht abgesichert.
+Beide Funktionen matchen Spieler über normalisierten Namen plus Team und
+verwenden bei jedem Lauf einen neuen Cache-Buster. Tier-Zeilen werden ignoriert
+und die Ränge pro Position gesammelt in einem Schreibvorgang aktualisiert.
 
 ## Synchronisation
 
