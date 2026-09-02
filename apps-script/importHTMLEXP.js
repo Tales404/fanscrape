@@ -125,6 +125,7 @@ function importCloudRunData() {
       const t = (teamField || '').trim();
       const teamMatch = t.match(/\(([^)]+)\)\s*$/);
       if (teamMatch) team = teamMatch[1].trim();
+      else team = t;
     }
     return { name, team };
   };

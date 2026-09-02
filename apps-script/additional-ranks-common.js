@@ -92,15 +92,23 @@ function updateAdditionalRankColumn_(spreadsheet, sheetName, players, columnHead
   const rowCount = lastRow - 1;
   const sheetData = sheet.getRange(2, 1, rowCount, lastColumn).getValues();
   const playerRows = {};
+  const playerRowsByName = {};
   sheetData.forEach((row, index) => {
     const playerName = normalizeRankKeyPart_(row[playerColumn]);
     const team = normalizeRankKeyPart_(row[teamColumn]);
     if (playerName && team) playerRows[`${playerName}_${team}`] = index;
+    if (playerName) {
+      // A duplicate name is marked ambiguous and must not use the fallback.
+      playerRowsByName[playerName] = playerRowsByName[playerName] === undefined
+        ? index
+        : null;
+    }
   });
 
   const output = Array.from({ length: rowCount }, () => ['']);
   const unmatchedExamples = [];
   let matched = 0;
+  let matchedByName = 0;
   let considered = 0;
 
   players.forEach(player => {
@@ -110,8 +118,13 @@ function updateAdditionalRankColumn_(spreadsheet, sheetName, players, columnHead
     if (!identity.playerName || !identity.team) return;
     considered += 1;
 
-    const key = `${normalizeRankKeyPart_(identity.playerName)}_${normalizeRankKeyPart_(identity.team)}`;
-    const rowIndex = playerRows[key];
+    const normalizedName = normalizeRankKeyPart_(identity.playerName);
+    const key = `${normalizedName}_${normalizeRankKeyPart_(identity.team)}`;
+    let rowIndex = playerRows[key];
+    if (rowIndex === undefined && typeof playerRowsByName[normalizedName] === 'number') {
+      rowIndex = playerRowsByName[normalizedName];
+      matchedByName += 1;
+    }
     if (rowIndex !== undefined) {
       output[rowIndex][0] = player.rank || '';
       matched += 1;
@@ -123,7 +136,8 @@ function updateAdditionalRankColumn_(spreadsheet, sheetName, players, columnHead
   sheet.getRange(2, rankColumn + 1, rowCount, 1).setValues(output);
   const unmatched = considered - matched;
   const examples = unmatchedExamples.length ? ` Beispiele: ${unmatchedExamples.join(', ')}` : '';
-  Logger.log(`${columnHeader}/${position}: ${matched} Ränge geschrieben, ${unmatched} nicht gematcht.${examples}`);
+  const fallback = matchedByName ? ` (${matchedByName} davon nur über eindeutigen Namen)` : '';
+  Logger.log(`${columnHeader}/${position}: ${matched} Ränge geschrieben${fallback}, ${unmatched} nicht gematcht.${examples}`);
 }
 
 function getAdditionalRankIdentity_(player) {

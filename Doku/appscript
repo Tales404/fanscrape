@@ -36,7 +36,10 @@ Dabei wird nur der Inhalt geleert (`clearContents()`), nicht die Formatierung.
 
 Beide Funktionen matchen Spieler über normalisierten Namen plus Team und
 verwenden bei jedem Lauf einen neuen Cache-Buster. Tier-Zeilen werden ignoriert
-und die Ränge pro Position gesammelt in einem Schreibvorgang aktualisiert.
+und die Ränge pro Position gesammelt in einem Schreibvorgang aktualisiert. Für
+ältere Quellzeilen ohne Team greift ein Fallback, sofern der Spielername im
+jeweiligen Positions-Tab eindeutig ist. Der Hauptimport schreibt neue
+Cloud-Run-Teamfelder direkt in die Team-Spalte.
 
 ## Synchronisation
 
