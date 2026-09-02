@@ -26,6 +26,9 @@ der Standard `true` verwendet. Der Request-Handler des Crawlers hat ein
 Timeout von 600 Sekunden. Pro Crawler wird nur eine Anfrage gleichzeitig
 verarbeitet. Bilder, Fonts, Medien und bekannte Werbe-/Tracking-Hosts werden
 vor der Navigation blockiert, um Laufzeit und Speicherbedarf zu reduzieren.
+Die Navigation wartet nur auf die erste Dokumentantwort (`commit`); alle für
+das Scraping benötigten Elemente werden danach explizit abgewartet. Ein
+vollständig fehlgeschlagener Lauf liefert HTTP 502 statt eines leeren Arrays.
 
 Der Server nutzt `process.env.PORT` oder standardmäßig Port `8080`.
 

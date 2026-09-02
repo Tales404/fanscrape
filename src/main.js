@@ -22,7 +22,11 @@ function buildCrawler(router, { cookies, headless = true } = {}) {
             },
         },
         preNavigationHooks: [
-            async ({ page }) => {
+            async ({ page }, gotoOptions) => {
+                // FantasyPros keeps optional third-party requests open in Cloud Run.
+                // Continue as soon as the main document responds; the handler waits
+                // explicitly for every element it needs.
+                gotoOptions.waitUntil = 'commit';
                 await page.route('**/*', async route => {
                     const request = route.request();
                     const resourceType = request.resourceType();
@@ -72,6 +76,9 @@ app.get('/draft', async (req, res) => {
 
     const dataset = await Dataset.open();
     const { items } = await dataset.getData();
+    if (items.length === 0) {
+        return res.status(502).json({ error: 'FantasyPros scrape produced no data.' });
+    }
     res.json(items);
 });
 
@@ -98,6 +105,9 @@ app.get('/inSeason', async (req, res) => {
 
     const dataset = await Dataset.open();
     const { items } = await dataset.getData();
+    if (items.length === 0) {
+        return res.status(502).json({ error: 'FantasyPros scrape produced no data.' });
+    }
     res.json(items);
 });
 
