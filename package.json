@@ -11,9 +11,14 @@
     },
     "scripts": {
         "start": "node src/main.js",
+        "apps-script:pull": "clasp -A .clasprc.json pull",
+        "apps-script:status": "clasp -A .clasprc.json status",
         "test": "echo \"Error: oops, the actor has no tests yet, sad!\" && exit 1",
         "postinstall": "npx crawlee install-playwright-browsers"
     },
     "author": "It's not you it's me",
-    "license": "ISC"
+    "license": "ISC",
+    "devDependencies": {
+        "@google/clasp": "3.4.1"
+    }
 }

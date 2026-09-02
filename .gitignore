@@ -4,3 +4,8 @@
 dist
 node_modules
 storage
+
+# Local Google Apps Script authentication and project binding
+.clasprc.json
+.clasp.json
+credentials.json

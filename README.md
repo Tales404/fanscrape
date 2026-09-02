@@ -40,6 +40,31 @@ Die wichtigsten Bestandteile des Projekts sind:
 
 ## Installation und Verwendung
 
+### Lokale Apps-Script-Entwicklung mit clasp
+
+Der aktuelle Apps-Script-Quellcode liegt in `apps-script/`. Das an das Google
+Sheet gebundene Apps-Script-Projekt wird lokal mit `clasp` synchronisiert.
+
+Einmalig pro Rechner:
+
+```bash
+npm install
+npx clasp -A .clasprc.json login
+```
+
+Danach kann der aktuelle Online-Stand heruntergeladen und der lokale Status
+geprüft werden:
+
+```bash
+npm run apps-script:pull
+npm run apps-script:status
+```
+
+Die lokalen Dateien `.clasprc.json` und `.clasp.json` enthalten die
+Authentifizierung beziehungsweise Projektzuordnung und werden nicht in Git
+eingecheckt. Vor einem `clasp push` müssen die Änderungen geprüft und bewusst
+für das verbundene Sheet freigegeben werden.
+
 1. **Google Apps Script**:
    - Erstellen Sie ein neues Google Sheets Dokument.
    - Öffnen Sie den Script-Editor (`Erweiterungen > Apps Script`).
