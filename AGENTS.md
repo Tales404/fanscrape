@@ -16,4 +16,5 @@
 ## Sensitive files
 
 - Never print or commit `.clasprc.json`, `.clasp.json`, OAuth tokens, session cookies, or credential files.
-- Treat `src/config/cookies.json` as sensitive session material even though it is currently tracked in repository history.
+- Treat `src/config/cookies.json` as ignored local session material. It still exists in older repository history and must never be re-added.
+- Never pass cookie JSON directly on a command line. Use a local ignored file or a Cloud Run Secret Manager mount.

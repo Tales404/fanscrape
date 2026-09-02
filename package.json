@@ -13,7 +13,7 @@
         "start": "node src/main.js",
         "apps-script:pull": "clasp -A .clasprc.json pull",
         "apps-script:status": "clasp -A .clasprc.json status",
-        "test": "echo \"Error: oops, the actor has no tests yet, sad!\" && exit 1",
+        "test": "node --test",
         "postinstall": "npx crawlee install-playwright-browsers"
     },
     "author": "It's not you it's me",

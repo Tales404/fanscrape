@@ -6,3 +6,10 @@ storage
 
 # installed files
 node_modules
+
+# Local authentication and session material must never enter the image
+.clasprc.json
+.clasp.json
+credentials.json
+src/config/cookies*.json
+!src/config/cookies.example.json
