@@ -1,86 +1,47 @@
-```markdown
-# Dokumentation des Google App Script
+# Google Apps Script
 
-## Übersicht
+Das gebundene Apps-Script-Projekt wird über `clasp` in `apps-script/`
+synchronisiert. Der aktuelle Online-Stand besteht aus fünf Dateien.
 
-Das Google App Script wird verwendet, um Daten von einem Cloud Run Service abzurufen und diese in verschiedene Google Sheets einzutragen. Jede Position (z.B. QB, RB, WR) wird in ein separates Sheet geladen, wobei die Daten entsprechend formatiert und in der Tabelle gespeichert werden.
+## `Datenimport.js`
 
-## Funktionsweise
+`importFantasyProsData()` lädt eine FantasyPros-Seite direkt mit
+`UrlFetchApp`, extrahiert `ecrData`, `sosData` und `adpData` aus eingebettetem
+JavaScript und schreibt sie in die `Source_*_ECR`-Tabs. `onOpen()` erzeugt die
+Menüs **Fantasy Pros Import** und **CloudRun Import**.
 
-### 1. Initialisierung des Skripts
+Achtung: Der direkte Import verwendet momentan `sheet.clear()` und entfernt
+damit neben Inhalten auch Formatierung. Das sollte vor einer Überarbeitung der
+Quell-Tabs berücksichtigt werden.
 
-Das Skript startet mit der Definition des `importCloudRunData`-Funktion. Diese Funktion steuert den gesamten Ablauf von der Datenabfrage bis zur Speicherung der Daten in den Google Sheets.
+## `importHTMLEXP.js`
 
-### 2. Definition der Sheet-Namen
+`importCloudRunData()` fragt `/draft` zunächst für alle Positionen gemeinsam
+ab. Falls das Antwortformat nicht passt, werden Positionen einzeln geladen.
+Die Funktion normalisiert Spielername, Team, Bye Week, SOS und ECR-vs.-ADP und
+schreibt folgende Tabs:
 
-Ein `keyMap`-Objekt wird erstellt, das jeder Position (z.B. QB, RB, WR) den entsprechenden Namen des Sheets zuweist. Dieses Mapping sorgt dafür, dass die abgerufenen Daten in das richtige Sheet eingefügt werden.
+- `Source_ADFJR_QB`, `Source_ADFJR_RB`, `Source_ADFJR_WR`
+- `Source_ADFJR_TE`, `Source_ADFJR_K`, `Source_ADFJR_DST`
+- `Source_ADFJR_All`
 
-```javascript
-const keyMap = {
-  'QB': 'Source_ADF_QB',
-  'RB': 'Source_ADF_RB',
-  'WR': 'Source_ADF_WR',
-  'TE': 'Source_ADF_TE',
-  'K': 'Source_ADF_K',
-  'DST': 'Source_ADF_DST'
-};
+Dabei wird nur der Inhalt geleert (`clearContents()`), nicht die Formatierung.
+
+## Zusätzliche Experten-Ränge
+
+- `addrank-adf.js` ergänzt `addadf` für die dort konfigurierte Expertengruppe.
+- `addrank-jr.js` ergänzt `addjr` für die dort konfigurierte Expertengruppe.
+
+Beide Funktionen matchen Spieler über normalisierten Namen plus Team. Bei
+leeren Tabs können die aktuellen Range-Berechnungen ungültige Zeilenzahlen
+erzeugen; dieser Randfall ist noch nicht abgesichert.
+
+## Synchronisation
+
+```bash
+npm run apps-script:status
+npm run apps-script:pull
 ```
 
-### 3. Abrufen der Daten vom Cloud Run Service
-
-Die Funktion verwendet `UrlFetchApp.fetch`, um Daten von einer Cloud Run-Instanz abzurufen. Die abgerufenen Daten werden als JSON geparst und zur weiteren Verarbeitung in das `datasets`-Objekt geladen.
-
-### 4. Verarbeitung und Speicherung der Daten
-
-Für jede Position wird das entsprechende Sheet im Spreadsheet ausgewählt. Die Daten werden dann verarbeitet, um sicherzustellen, dass sie korrekt formatiert sind. Das Skript geht dabei wie folgt vor:
-
-1. **Säubern der Daten**: Der Spielername und das Team werden getrennt, indem der Teamname, der in Klammern angegeben ist, entfernt und in die Team-Spalte verschoben wird.
-  
-2. **Umwandeln der SOS-Werte**: Die SOS-Sterne-Werte (z.B. "3 out of 5 stars") werden in eine numerische Darstellung umgewandelt.
-
-3. **Einfügen der Daten in das Sheet**: Nachdem die Daten verarbeitet wurden, werden sie in das entsprechende Sheet eingefügt. Das Skript beginnt mit einer leeren Tabelle, fügt die Header-Zeile ein und schreibt dann die Daten darunter.
-
-### 5. Fehlerbehandlung
-
-Das Skript ist darauf ausgelegt, Fehler abzufangen und entsprechende Meldungen im Logger auszugeben. Dies gewährleistet eine robuste Ausführung, auch wenn unerwartete Probleme auftreten.
-
-### Beispiel für die Datenverarbeitung
-
-Ein wichtiger Aspekt des Skripts ist die Trennung von Spielername und Team sowie die Umwandlung der SOS-Werte. Diese Verarbeitungsschritte gewährleisten, dass die Daten korrekt formatiert sind und leicht in den Google Sheets dargestellt werden können.
-
-```javascript
-const rows = data.map(player => {
-    let playerName = player.team;
-    let team = "";
-
-    const teamMatch = playerName.match(/\(([^)]+)\)$/);
-    if (teamMatch) {
-        team = teamMatch[1]; // Team extrahieren
-        playerName = playerName.replace(teamMatch[0], "").trim(); // Team aus dem Namen entfernen
-    }
-
-    let sosSeason = player.sos_season;
-    if (sosSeason) {
-        const sosMatch = sosSeason.match(/(\d) out of 5 stars/g);
-        if (sosMatch) {
-            sosSeason = sosMatch[0].charAt(0); // Nimmt die Zahl vor "out of 5 stars"
-        } else {
-            sosSeason = ""; // Falls kein passender Wert gefunden wurde
-        }
-    }
-
-    return [
-        player.rank || '',
-        playerName,
-        team,
-        player.bye_week || '',
-        sosSeason || '',
-        player.ecr_vs_adp || ''
-    ];
-});
-```
-
-### Zusammenfassung
-
-Das Google App Script importiert Daten von einem Cloud Run Service und verteilt sie auf verschiedene Google Sheets basierend auf der Position (QB, RB, WR, etc.). Das Skript ist so konzipiert, dass es robust auf Fehler reagiert und die Daten in einer benutzerfreundlichen Form präsentiert. Durch die klare Trennung und Verarbeitung der Daten wird sichergestellt, dass sie korrekt und übersichtlich in den Sheets dargestellt werden.
-```
+Ein Pull kann lokale Dateien überschreiben. Ein Push verändert das produktiv
+an das Sheet gebundene Projekt und erfolgt deshalb nur nach Review.

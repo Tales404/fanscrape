@@ -13,6 +13,23 @@ export const routerInSeason = createPlaywrightRouter();
 routerDraft.addDefaultHandler(async ({ page, log, request }) => {
     const { positions, experts, cacheBuster } = request.userData || {};
 
+    const positionsList = Array.isArray(positions)
+        ? positions
+        : (typeof positions === 'string'
+            ? positions.split(',').map(s => s.trim()).filter(Boolean)
+            : []);
+
+    const expertsList = Array.isArray(experts)
+        ? experts
+        : (typeof experts === 'string'
+            ? experts.split(',').map(s => s.trim()).filter(Boolean)
+            : []);
+
+    // Default positions if none provided
+    const POS_DEFAULT = ['QB','RB','WR','TE','K','DST','Overall'];
+    const posToFetch = positionsList.length ? positionsList : POS_DEFAULT;
+    log.info(`Draft-Positions: ${JSON.stringify(posToFetch)}`);
+
     log.info(`Draft-Modus: Cache-Buster ${cacheBuster}`);
 
     // Cookies laden & setzen (SameSite-Default absichern)
@@ -44,51 +61,242 @@ routerDraft.addDefaultHandler(async ({ page, log, request }) => {
     await page.click('label[for="experts-modal-select-all"]');
     await page.click('label[for="experts-modal-select-all"]');
 
-    if (Array.isArray(experts)) {
-        for (const expert of experts) {
-            await page.click(`label[for="experts-modal-select-expert-${expert}"]`);
+    if (expertsList.length) {
+        for (const expert of expertsList) {
+            await page.click(`label[for="experts-modal-select-expert-${expert}"]`).catch(() => {});
         }
     }
 
     await page.click('button.fp-cta-button.fp-cta-button__primary >> text=Apply');
     log.info('Experten angewendet.');
+    // Warte, bis die Tabelle wirklich gerendert ist (headless braucht teils länger)
+    await page.waitForSelector('table tbody tr', { timeout: 30000 });
+    await page.waitForTimeout(800);
 
-    // Rankings je Position holen
+    // --- Helpers for robust tab switching and header mapping ---
+    async function clickPositionTab(position) {
+        // Try ARIA role first (if Playwright's getByRole is available)
+        try {
+            const roleTab = page.getByRole?.('tab', { name: new RegExp(`^${position}\\b`, 'i') });
+            if (roleTab) { await roleTab.click({ timeout: 1500 }); return true; }
+        } catch {}
+        // Fallback selectors
+        const candidates = [
+            `a:has-text("${position}")`,
+            `button:has-text("${position}")`,
+            `a[role="tab"]:has-text("${position}")`,
+            `li:has-text("${position}") a`,
+            `li:has-text("${position}") button`,
+            `a[href="javascript:;"]:has-text("${position}")`,
+        ];
+        for (const sel of candidates) {
+            try {
+                const el = await page.$(sel);
+                if (el) {
+                    await el.click({ timeout: 1500 });
+                    await page.waitForTimeout(200); // kleine Stabilisierungspause nach dem Klick
+                    return true;
+                }
+            } catch {}
+        }
+        // Last resort: scan common tab containers and click by text
+        try {
+            const clicked = await page.evaluate((pos) => {
+                const norm = s => (s||'').trim().toLowerCase();
+                const want = norm(pos);
+                const roots = document.querySelectorAll('.fp-tabs, .tabs, .rankings-tabs, nav, ul');
+                for (const root of roots) {
+                    const links = root.querySelectorAll('a,button,li');
+                    for (const a of links) {
+                        const t = norm(a.innerText || a.textContent);
+                        if (t && (t === want || t.startsWith(want))) { a.click(); return true; }
+                    }
+                }
+                return false;
+            }, position);
+            if (clicked) return true;
+        } catch {}
+        return false;
+    }
+
+    async function getHeaderMap() {
+        return page.evaluate(() => {
+            const map = {};
+            const ths = Array.from(document.querySelectorAll('table thead th'));
+            ths.forEach((th, idx) => {
+                const t = (th.innerText || th.textContent || '').trim().toLowerCase();
+                if (!t) return;
+                if (t.includes('rank')) map.rank = idx;
+                if (t.includes('player')) map.player = idx;
+                if (t.includes('team')) map.team = idx;
+                if (t.includes('bye'))  map.bye = idx;
+                if (t.includes('sos'))  map.sos = idx; // real SOS column (ignore coach rows later)
+                if (t === 'ecr vs. adp' || t.includes('ecr vs') || (t.includes('ecr') && t.includes('adp'))) map.ecr_vs_adp = idx;
+                if (map.ecr_vs_adp == null && t.includes('ecr')) map.ecr = idx;
+                if (t.includes('adp'))  map.adp = idx;
+            });
+            return map;
+        });
+    }
+
     async function extractDataForPosition(position) {
         log.info(`Lade ${position} …`);
-        let retries = 3;
-        while (retries--) {
-            await page.click(`a[href="javascript:;"] >> text=${position}`);
-            await page.waitForSelector('.player-cell-name');
 
-            const data = await page.evaluate(() => {
-                return Array.from(document.querySelectorAll('table tbody tr')).map(row => {
-                    const cols = row.querySelectorAll('td');
-                    return {
-                        rank       : cols[0]?.innerText.trim(),
-                        player_name: cols[1]?.innerText.trim(),
-                        team       : cols[2]?.innerText.trim(),
-                        bye_week   : cols[3]?.innerText.trim(),
-                        sos_season : cols[4]?.innerText.trim(),
-                        ecr_vs_adp : cols[5]?.innerText.trim(),
-                    };
-                });
-            });
-            if (data.length) return data;
-            log.warn(`Retry ${3 - retries}/3 für ${position}`);
-            await page.waitForTimeout(1000);
+        // Snapshot first cell to detect content change after tab click
+        const beforeFirstCell = await page.evaluate(() => {
+            const td = document.querySelector('table tbody tr td');
+            return (td && (td.innerText || td.textContent || '').trim()) || '';
+        });
+
+        // Click the tab (retry a few times)
+        let clicked = false;
+        for (let i = 0; i < 3 && !clicked; i++) {
+            clicked = await clickPositionTab(position);
+            if (!clicked) await page.waitForTimeout(300);
         }
-        log.error(`Keine Daten für ${position}`);
-        return [];
+        if (!clicked) log.warning(`Konnte Tab für ${position} nicht zuverlässig klicken.`);
+
+        // Wait for content change with MutationObserver (max ~6s)
+        const changed = await page.evaluate(async () => {
+            const tbody = document.querySelector('table tbody');
+            if (!tbody) return false;
+            const prev = tbody.innerText.slice(0, 200);
+            return await new Promise(resolve => {
+                let done = false;
+                const obs = new MutationObserver(() => {
+                    if (done) return;
+                    const now = tbody.innerText.slice(0, 200);
+                    if (now && now !== prev) { done = true; obs.disconnect(); resolve(true); }
+                });
+                obs.observe(tbody, { childList: true, subtree: true });
+                setTimeout(() => { if (!done) { done = true; obs.disconnect(); resolve(false); } }, 6000);
+            });
+        });
+        if (!changed) {
+            log.warning(`Tabelle hat sich für ${position} nicht sichtbar geändert – lese trotzdem.`);
+            await page.waitForTimeout(600);
+        }
+
+        // Build header map
+        const headerMap = await getHeaderMap();
+        if (!headerMap || headerMap.player == null) {
+            log.warning(`Header-Map unvollständig für ${position}: ${JSON.stringify(headerMap)}`);
+        }
+
+        // Fallback: wenn keine Player-Spalte ermittelt wurde, nutze .player-cell-name
+        const usePlayerCellSelector = !headerMap || headerMap.player == null;
+
+        // Extract rows using header mapping (plus Fallback)
+        const rows = await page.evaluate((map, usePlayerCellSelector) => {
+            const cleanNum = (s) => {
+                const m = String(s||'').match(/[+-]?\d+(\.\d+)?/);
+                return m ? m[0] : '';
+            };
+            const getText = (tds, i) => (i != null && tds[i]) ? (tds[i].innerText || tds[i].textContent || '').trim() : '';
+
+            const parseNameTeam = (playerCellText, teamCellText) => {
+                let name = (playerCellText || '').trim();
+                let team = '';
+                if (!name) {
+                    const t = (teamCellText || '').trim();
+                    const m = t.match(/^(.*)\(([^)]+)\)\s*$/);
+                    if (m) { name = m[1].trim(); team = m[2].trim(); }
+                    else { name = t; }
+                } else {
+                    const m = name.match(/^(.*)\(([^)]+)\)\s*$/);
+                    if (m && !teamCellText) { name = m[1].trim(); team = m[2].trim(); }
+                }
+                if (!team && teamCellText) {
+                    const mt = teamCellText.match(/\(([^)]+)\)/);
+                    if (mt) team = mt[1].trim();
+                }
+                return { name, team };
+            };
+
+            const out = [];
+            const trs = Array.from(document.querySelectorAll('table tbody tr'));
+            for (const tr of trs) {
+                const tds = tr.querySelectorAll('td');
+                const rankTxt = getText(tds, map?.rank);
+                if ((rankTxt || '').toLowerCase().includes('tier')) {
+                    out.push({ rank: rankTxt, player_name: '', team: 'Customize Tiers' });
+                    continue;
+                }
+
+                let playerCell = getText(tds, map?.player);
+                let teamCell   = getText(tds, map?.team);
+
+                if (usePlayerCellSelector) {
+                    const cell = tr.querySelector('.player-cell-name, .player-name, td a.player-name');
+                    playerCell = (cell && (cell.textContent||'').trim()) || playerCell;
+                    // Team-Kürzel ggf. aus derselben Zelle oder Nachbarzelle ziehen
+                    const near = tr.querySelector('.player-cell-name, .player-name')?.closest('td');
+                    if (near) {
+                        const m = near.innerText.match(/\(([^)]+)\)/);
+                        if (m) teamCell = m[1].trim();
+                    }
+                    if (!teamCell) {
+                        const tdWithParens = Array.from(tds).find(td => /\([A-Z]{2,3}\)/.test(td.innerText));
+                        if (tdWithParens) {
+                            const m2 = tdWithParens.innerText.match(/\(([^)]+)\)/);
+                            if (m2) teamCell = m2[1].trim();
+                        }
+                    }
+                }
+
+                const { name, team } = parseNameTeam(playerCell, teamCell);
+                if (!name) continue;
+
+                const bye = getText(tds, map?.bye);
+
+                let sos = getText(tds, map?.sos);
+                if (sos && /coach\s+(upside|bust)/i.test(sos)) sos = '';
+
+                let ecrVsAdp = getText(tds, map?.ecr_vs_adp);
+                if (!ecrVsAdp) {
+                    const ecr = getText(tds, map?.ecr);
+                    const adp = getText(tds, map?.adp);
+                    const e = parseFloat(cleanNum(ecr));
+                    const a = parseFloat(cleanNum(adp));
+                    if (!isNaN(e) && !isNaN(a)) ecrVsAdp = String(e - a);
+                }
+
+                out.push({
+                    rank: rankTxt,
+                    player_name: name,
+                    team: team,
+                    bye_week: bye,
+                    sos_season: sos,
+                    ecr_vs_adp: ecrVsAdp,
+                });
+            }
+            return out;
+        }, headerMap, usePlayerCellSelector);
+
+        if (!rows || rows.length === 0) {
+            const debugHead = await page.evaluate(() => ({
+                head: Array.from(document.querySelectorAll('table thead th')).map(th => (th.innerText||'').trim()),
+                firstRow: (document.querySelector('table tbody tr') || null)?.innerText?.slice(0,200) || 'none',
+            }));
+            log.warning(`Keine Rows für ${position}. Header: ${JSON.stringify(debugHead.head)} | firstRow: ${debugHead.firstRow}`);
+        }
+        return rows.filter(r => r && r.player_name);
     }
 
     const ecrData = {};
-    if (Array.isArray(positions)) {
-        for (const pos of positions) ecrData[pos] = await extractDataForPosition(pos);
+    for (const pos of posToFetch) {
+        try {
+            ecrData[pos] = await extractDataForPosition(pos);
+        } catch (err) {
+            log.warning(`Fehler beim Laden von ${pos}: ${err?.message || err}`);
+            ecrData[pos] = [];
+        }
     }
 
     const dataset = await Dataset.open();
     await dataset.pushData(ecrData);
+    // Optional: store on page context for direct retrieval if main.js reads from there
+    try { await page.exposeFunction('fanscrapeResult', () => ecrData); } catch {}
 });
 
 /* =======================  IN‑SEASON  ============================== */
@@ -141,7 +349,7 @@ routerInSeason.addDefaultHandler(async ({ page, log }) => {
 
     // 3) Iterate teams robustly
     const teams = [
-        'Fulda Ravens','Schwerter Vikings','Duern Raiders','Hennes seine Colts',
+        'Action Jackson','Schwerter Vikings','Duern Raiders','Hennes seine Colts',
         'Earls Town','Seubertville',"MJ's Squad",'San Frannico 49ers',
         'Dinslaken Dolphins','Robins Seahawks',
     ];
