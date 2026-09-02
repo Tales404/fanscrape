@@ -9,3 +9,10 @@ storage
 .clasprc.json
 .clasp.json
 credentials.json
+
+# FantasyPros session material (local fallback only)
+src/config/cookies*.json
+!src/config/cookies.example.json
+
+# Machine-specific trust material and other local-only files
+.local/

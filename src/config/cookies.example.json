@@ -1,0 +1,11 @@
+[
+  {
+    "domain": ".fantasypros.com",
+    "httpOnly": true,
+    "name": "replace-with-cookie-name",
+    "path": "/",
+    "sameSite": "no_restriction",
+    "secure": true,
+    "value": "replace-with-cookie-value"
+  }
+]

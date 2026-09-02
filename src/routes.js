@@ -32,15 +32,6 @@ routerDraft.addDefaultHandler(async ({ page, log, request }) => {
 
     log.info(`Draft-Modus: Cache-Buster ${cacheBuster}`);
 
-    // Cookies laden & setzen (SameSite-Default absichern)
-    try {
-        const cookies = JSON.parse(fs.readFileSync('src/config/cookies.json', 'utf8'))
-            .map(c => ({ ...c, sameSite: c.sameSite || 'None' }));
-        await page.context().addCookies(cookies);
-    } catch (e) {
-        log.warning(`Konnte cookies.json nicht laden: ${e?.message || e}`);
-    }
-
     // Seite aufrufen
     await page.goto(`https://www.fantasypros.com/nfl/rankings/half-point-ppr-cheatsheets.php?cacheBuster=${cacheBuster}`);
     log.info('Seite im Draft-Modus geladen.');

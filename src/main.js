@@ -1,29 +1,15 @@
 import { PlaywrightCrawler, Dataset } from 'crawlee';
 import { routerDraft, routerInSeason } from './routes.js';
-import fs from 'fs/promises';
+import { loadFantasyProsCookies } from './cookies.js';
 import express from 'express';
 
 const app = express();
 let lastCacheBuster = null;
 
 /**
- * Normalisiert die Cookie‑Datei: "lax" → "Lax", "no_restriction" → "None".
- * Muss vor jedem Crawler‑Run aufgerufen werden, damit Playwright nicht crasht.
- */
-async function correctCookieFile() {
-    const filePath = 'src/config/cookies.json';
-    const cookiesString = await fs.readFile(filePath, 'utf8');
-    const corrected = cookiesString
-        .replace(/"lax"/g, '"Lax"')
-        .replace(/"no_restriction"/g, '"None"');
-    await fs.writeFile(filePath, corrected, 'utf8');
-    console.log('Cookies corrected successfully');
-}
-
-/**
  * Baut einen vorkonfigurierten PlaywrightCrawler je nach Router‑Variante.
  */
-function buildCrawler(router, { headless = true } = {}) {
+function buildCrawler(router, { cookies, headless = true } = {}) {
     return new PlaywrightCrawler({
         requestHandler: router,
         requestHandlerTimeoutSecs: 120,
@@ -34,9 +20,6 @@ function buildCrawler(router, { headless = true } = {}) {
         },
         preNavigationHooks: [
             async ({ page }) => {
-                const cookiesString = await fs.readFile('src/config/cookies.json', 'utf8');
-                let cookies = JSON.parse(cookiesString);
-                cookies = cookies.map(c => ({ ...c, sameSite: c.sameSite || 'Lax' }));
                 await page.context().addCookies(cookies);
                 console.log('Cookies set successfully');
             },
@@ -50,7 +33,7 @@ function buildCrawler(router, { headless = true } = {}) {
 app.get('/draft', async (req, res) => {
     const { positions, experts, cacheBuster } = req.query;
 
-    await correctCookieFile();
+    const cookies = await loadFantasyProsCookies();
 
     // Cache steuern
     if (cacheBuster !== lastCacheBuster) {
@@ -60,7 +43,7 @@ app.get('/draft', async (req, res) => {
     }
 
     const isHeadless = String(req.query.headless ?? 'true').toLowerCase() !== 'false';
-    const crawler = buildCrawler(routerDraft, { headless: isHeadless });
+    const crawler = buildCrawler(routerDraft, { cookies, headless: isHeadless });
 
     await crawler.run([{
         url: `https://www.fantasypros.com/nfl/rankings/half-point-ppr-cheatsheets.php?cacheBuster=${cacheBuster}`,
@@ -82,7 +65,7 @@ app.get('/draft', async (req, res) => {
 app.get('/inSeason', async (req, res) => {
     const { cacheBuster } = req.query;
 
-    await correctCookieFile();
+    const cookies = await loadFantasyProsCookies();
 
     if (cacheBuster !== lastCacheBuster) {
         const dataset = await Dataset.open();
@@ -91,7 +74,7 @@ app.get('/inSeason', async (req, res) => {
     }
 
     const isHeadless = String(req.query.headless ?? 'true').toLowerCase() !== 'false';
-    const crawler = buildCrawler(routerInSeason, { headless: isHeadless });
+    const crawler = buildCrawler(routerInSeason, { cookies, headless: isHeadless });
     await crawler.run([{
         url: `https://www.fantasypros.com/nfl/rankings/half-point-ppr-cheatsheets.php?cacheBuster=${cacheBuster}`,
         userData: { cacheBuster: cacheBuster || Date.now().toString() },

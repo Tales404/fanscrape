@@ -70,7 +70,8 @@ werden.
 
 ## Noch offen
 
-- Cookies aus Git entfernen, Sitzungen rotieren und Laufzeit-Secrets einführen
+- ältere FantasyPros-Sitzungen widerrufen und optional die Git-Historie säubern
+- Secret Manager an Cloud Run mounten, bevor der cookie-freie Code deployt wird
 - Dataset/Cache pro Request isolieren
 - Fehlerantworten und Timeouts der HTTP-Endpunkte vereinheitlichen
 - robusten CSV-Parser einsetzen

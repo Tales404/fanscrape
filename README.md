@@ -62,6 +62,24 @@ Vor einem Pull müssen lokale Änderungen gesichert sein, weil der Online-Stand
 lokale Dateien überschreiben kann. `clasp push` und Cloud-Run-Deployments
 werden erst nach bewusster Prüfung ausgeführt.
 
+## FantasyPros-Cookies
+
+Sitzungsdaten werden nicht mehr versioniert und durch `.dockerignore` auch
+nicht versehentlich in ein Container-Image kopiert. Lokal erwartet der Service
+standardmäßig `src/config/cookies.json`; die Struktur zeigt
+`src/config/cookies.example.json`.
+
+Alternativ können folgende Laufzeitvariablen verwendet werden:
+
+- `FANTASYPROS_COOKIES_FILE`: Pfad zu einer JSON-Datei, bevorzugt für einen
+  read-only Secret-Manager-Mount in Cloud Run
+- `FANTASYPROS_COOKIES_JSON`: vollständiges JSON direkt aus einer Secret-
+  Umgebungsvariable; hat Vorrang vor dem Dateipfad
+
+Chrome-Exportfelder werden in `src/cookies.js` validiert, abgelaufene Cookies
+werden verworfen und `sameSite` sowie `expirationDate` für Playwright
+normalisiert. Cookie-Werte werden nicht geloggt.
+
 ## Abgleich mit der Produktion
 
 Am 2. September 2026 wurde der Quellstand der aktiven Cloud-Run-Revision
@@ -72,16 +90,17 @@ GitHub-Lockfile-Stand bleibt erhalten, weil er neuere Dependency-Fixes enthält.
 
 ## Bekannte technische Risiken
 
-- `src/config/cookies.json` enthält Sitzungsdaten und ist historisch im
-  öffentlichen Repository gelandet. Die Sitzungen sollten rotiert und die
-  Datei durch Secret Manager oder eine vergleichbare Laufzeitkonfiguration
-  ersetzt werden.
+- Ältere Sitzungsdaten befinden sich weiterhin in der öffentlichen Git-
+  Historie. Sie sollten in FantasyPros widerrufen werden; eine spätere
+  History-Bereinigung ersetzt diesen Widerruf nicht.
+- Für Cloud Run muss vor dem nächsten Deployment noch ein Secret-Manager-
+  Secret gemountet und `FANTASYPROS_COOKIES_FILE` gesetzt werden.
 - Crawlee verwendet momentan ein gemeinsames Standard-Dataset und einen
   prozessweiten `lastCacheBuster`. Parallele Cloud-Run-Anfragen können sich
   dadurch beeinflussen.
 - Der In-Season-CSV-Parser trennt nur an Kommas und behandelt CSV-Quoting nicht
   vollständig.
-- Es gibt noch keine automatisierten Tests; `npm test` ist derzeit nur ein
-  Platzhalter und schlägt absichtlich fehl.
+- Die Cookie-Normalisierung besitzt erste Tests; Crawler und Apps Script sind
+  noch nicht automatisiert abgedeckt.
 
 Weitere Details stehen in [`Doku/Allgemein.md`](Doku/Allgemein.md).
