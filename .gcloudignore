@@ -1,0 +1,16 @@
+# Cloud Run source uploads must never contain local credentials or session data.
+.gcloudignore
+.git/
+.gitignore
+.DS_Store
+**/.DS_Store
+
+#!include:.gitignore
+
+# Explicit defense in depth for authentication material.
+.clasp.json
+.clasprc.json
+credentials.json
+.local/
+src/config/cookies*.json
+!src/config/cookies.example.json
