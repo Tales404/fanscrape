@@ -53,12 +53,12 @@ fest in `src/routes.js` konfiguriert.
 
 ## Laufender Cloud-Run-Stand
 
-Der letzte Read-only-Abgleich erfolgte mit Service `fanscrape` in
-`europe-west1`, aktive Revision `fanscrape-00026-8r8`. Die Revision nutzt Port
-8080, 2 vCPU, 2 GiB RAM, ein Request-Timeout von 900 Sekunden und eine
-Concurrency von 80. Diese hohe Concurrency passt noch nicht sicher zum
-gemeinsamen Crawlee-Dataset und sollte vor einem nächsten Deployment geprüft
-werden.
+Service `fanscrape` läuft in `europe-west1` auf Revision
+`fanscrape-00029-qg4` (Stand 2. September 2026). Die Revision nutzt Port 8080,
+2 vCPU, 4 GiB RAM, ein Request-Timeout von 900 Sekunden und Concurrency 1.
+Die Cookies werden aus Secret Manager nach
+`/secrets/fantasypros/cookies.json` gemountet. Ein produktiver Kompletttest
+lieferte QB, RB, WR, TE, K, DST und Overall in rund 28 Sekunden.
 
 ## Arbeitsweise
 
@@ -71,7 +71,6 @@ werden.
 ## Noch offen
 
 - optional die Git-Historie um die inzwischen abgelaufenen Cookies bereinigen
-- Secret Manager an Cloud Run mounten, bevor der cookie-freie Code deployt wird
 - Dataset/Cache pro Request isolieren
 - Fehlerantworten und Timeouts der HTTP-Endpunkte vereinheitlichen
 - robusten CSV-Parser einsetzen

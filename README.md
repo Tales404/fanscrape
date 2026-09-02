@@ -82,11 +82,12 @@ normalisiert. Cookie-Werte werden nicht geloggt.
 
 ## Abgleich mit der Produktion
 
-Am 2. September 2026 wurde der Quellstand der aktiven Cloud-Run-Revision
-`fanscrape-00026-8r8` mit GitHub verglichen. `src/main.js`, `Dockerfile` und
-`package.json` waren identisch. Die produktive, robustere `src/routes.js`
-fehlte auf GitHub und wurde auf diesem Branch wiederhergestellt. Der
-GitHub-Lockfile-Stand bleibt erhalten, weil er neuere Dependency-Fixes enthält.
+Am 2. September 2026 wurde der Produktionsstand mit GitHub abgeglichen und
+Revision `fanscrape-00029-qg4` aus `main` bereitgestellt. Sie bindet die
+FantasyPros-Cookies über Secret Manager ein, verarbeitet je Container nur
+einen Request gleichzeitig und nutzt 2 vCPU sowie 4 GiB RAM. Ein Live-Test
+aller sieben Draft-Ansichten (QB, RB, WR, TE, K, DST und Overall) war mit
+vollständigen Daten erfolgreich.
 
 ## Bekannte technische Risiken
 
@@ -94,11 +95,9 @@ GitHub-Lockfile-Stand bleibt erhalten, weil er neuere Dependency-Fixes enthält.
   Historie. Beim Audit am 2. September 2026 waren alle persistenten Cookies
   bereits abgelaufen und keiner der relevanten Auth-Werte wurde wiederverwendet.
   Eine History-Bereinigung bleibt optional sinnvoll.
-- Für Cloud Run muss vor dem nächsten Deployment noch ein Secret-Manager-
-  Secret gemountet und `FANTASYPROS_COOKIES_FILE` gesetzt werden.
 - Crawlee verwendet momentan ein gemeinsames Standard-Dataset und einen
-  prozessweiten `lastCacheBuster`. Parallele Cloud-Run-Anfragen können sich
-  dadurch beeinflussen.
+  prozessweiten `lastCacheBuster`. Cloud Run ist deshalb auf Concurrency 1
+  begrenzt; eine echte Isolation pro Request bleibt sinnvoll.
 - Der In-Season-CSV-Parser trennt nur an Kommas und behandelt CSV-Quoting nicht
   vollständig.
 - Die Cookie-Normalisierung besitzt erste Tests; Crawler und Apps Script sind
