@@ -91,8 +91,9 @@ GitHub-Lockfile-Stand bleibt erhalten, weil er neuere Dependency-Fixes enthält.
 ## Bekannte technische Risiken
 
 - Ältere Sitzungsdaten befinden sich weiterhin in der öffentlichen Git-
-  Historie. Sie sollten in FantasyPros widerrufen werden; eine spätere
-  History-Bereinigung ersetzt diesen Widerruf nicht.
+  Historie. Beim Audit am 2. September 2026 waren alle persistenten Cookies
+  bereits abgelaufen und keiner der relevanten Auth-Werte wurde wiederverwendet.
+  Eine History-Bereinigung bleibt optional sinnvoll.
 - Für Cloud Run muss vor dem nächsten Deployment noch ein Secret-Manager-
   Secret gemountet und `FANTASYPROS_COOKIES_FILE` gesetzt werden.
 - Crawlee verwendet momentan ein gemeinsames Standard-Dataset und einen
